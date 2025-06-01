@@ -3,10 +3,10 @@ import streamlit as st
 import pandas as pd
 import joblib
 import numpy as np
-import sklearn # Untuk mengecek versi
+import sklearn 
 import os
-import matplotlib.pyplot as plt 
-import seaborn as sns           
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 # --- Konfigurasi Halaman dan Sidebar Umum ---
 st.set_page_config(page_title="Analisis Audit & AI", layout="wide")
@@ -34,7 +34,7 @@ Pastikan semua file model (.joblib) berada di direktori yang sama dengan aplikas
 
 
 # --- Fungsi untuk Memuat Model (Mengurangi Redundansi) ---
-@st.cache_resource # Cache resource untuk model agar tidak reload setiap interaksi
+@st.cache_resource
 def load_logistic_regression_model():
     try:
         pipeline = joblib.load("logistic_regression_pipeline.joblib")
@@ -49,11 +49,10 @@ def load_logistic_regression_model():
         return None, None, None
 
 @st.cache_resource
-def load_kmeans_model_and_data(): # Modifikasi untuk memuat data asli juga
+def load_kmeans_model_and_data():
     try:
         model = joblib.load("kmeans_model.joblib")
         scaler = joblib.load("kmeans_scaler.joblib")
-        # Muat data asli untuk plotting
         df_original_for_plot = pd.read_csv('big4_financial_risk_compliance.csv')
         return model, scaler, df_original_for_plot
     except FileNotFoundError:
@@ -145,10 +144,6 @@ def unsupervised_analysis():
         return
 
     st.title("📊 Segmentasi Profil Audit (K-Means Clustering)")
-    st.markdown("""
-    Aplikasi ini membantu Anda mengidentifikasi segmen atau cluster dari suatu kasus audit (atau profil auditor) berdasarkan **Beban Kerja Karyawan** dan **Skor Efektivitas Audit**.
-    Masukkan nilai untuk kedua fitur di bawah ini untuk melihat ke cluster mana data tersebut masuk.
-    """)
 
     features_kmeans = ['Employee_Workload', 'Audit_Effectiveness_Score']
     cluster_descriptions = {
@@ -157,82 +152,107 @@ def unsupervised_analysis():
         2: "**Profil Cluster 2:** Cenderung memiliki Beban Kerja Karyawan yang tinggi namun dengan Skor Efektivitas Audit yang paling rendah. Kelompok ini mungkin memerlukan perhatian lebih, potensi adanya inefisiensi, atau area dengan tantangan khusus yang mempengaruhi efektivitas."
     }
 
-    employee_workload_unsup = st.slider("Beban Kerja Karyawan (Employee_Workload)", min_value=0, max_value=100, value=50, step=1, key="unsup_workload")
-    audit_effectiveness_score_unsup = st.slider("Skor Efektivitas Audit (Audit_Effectiveness_Score)", min_value=0.0, max_value=10.0, value=6.0, step=0.1, key="unsup_score")
+    # Inisialisasi session state jika belum ada
+    if 'user_point_coords_unsup' not in st.session_state:
+        st.session_state.user_point_coords_unsup = None
+    if 'user_point_cluster_unsup' not in st.session_state:
+        st.session_state.user_point_cluster_unsup = None
+    if 'predicted_cluster_text_unsup' not in st.session_state:
+        st.session_state.predicted_cluster_text_unsup = ""
+    if 'cluster_description_text_unsup' not in st.session_state:
+        st.session_state.cluster_description_text_unsup = ""
 
-    if st.button("🔍 Tentukan Cluster & Tampilkan Plot", key="unsup_cluster_button"): # Ubah teks tombol
-        input_data_kmeans_df = pd.DataFrame([[float(employee_workload_unsup), audit_effectiveness_score_unsup]], columns=features_kmeans)
+
+    # --- Fungsi untuk membuat dan menampilkan plot ---
+    def display_kmeans_plot(user_coords=None, user_cluster_label=None):
+        st.subheader("Visualisasi Cluster:")
+        X_plot_original = df_original_for_plot[features_kmeans].copy()
+        X_plot_scaled = kmeans_scaler.transform(X_plot_original)
+        all_cluster_labels = kmeans_model.predict(X_plot_scaled)
+        centroids = kmeans_scaler.inverse_transform(kmeans_model.cluster_centers_)
+
+        fig, ax = plt.subplots(figsize=(10, 7))
+        sns.scatterplot(
+            x=X_plot_original.iloc[:, 0], y=X_plot_original.iloc[:, 1],
+            hue=all_cluster_labels, palette='viridis', s=100, alpha=0.7, ax=ax, legend='full'
+        )
+        ax.scatter(
+            centroids[:, 0], centroids[:, 1], marker='X', s=250, color='red',
+            label='Centroids', edgecolor='black'
+        )
+        if user_coords and user_cluster_label is not None:
+            ax.scatter(
+                user_coords[0], user_coords[1], marker='P', s=300, color='lime',
+                label=f'Input Anda (Cluster {user_cluster_label})', edgecolor='black', zorder=5
+            )
+        ax.set_title(f'K-Means Clustering (k={kmeans_model.n_clusters})')
+        ax.set_xlabel(features_kmeans[0])
+        ax.set_ylabel(features_kmeans[1])
+        ax.legend()
+        ax.grid(True)
+        st.pyplot(fig)
+
+    # --- Tampilkan plot di bagian atas ---
+    # Plot akan menggunakan data dari session_state jika ada, atau None jika belum ada input pengguna
+    display_kmeans_plot(st.session_state.user_point_coords_unsup, st.session_state.user_point_cluster_unsup)
+
+    st.markdown("---") # Pemisah sebelum input
+    st.markdown("""
+    Aplikasi ini membantu Anda mengidentifikasi segmen atau cluster dari suatu kasus audit (atau profil auditor) berdasarkan **Beban Kerja Karyawan** dan **Skor Efektivitas Audit**.
+    Masukkan nilai untuk kedua fitur di bawah ini untuk melihat ke cluster mana data tersebut masuk dan bagaimana posisinya di plot.
+    """)
+
+    col_input1, col_input2 = st.columns(2)
+    with col_input1:
+        employee_workload_unsup = st.slider("Beban Kerja Karyawan (Employee_Workload)", min_value=0, max_value=100, value=st.session_state.get('unsup_workload_val', 50), step=1, key="unsup_workload_slider")
+    with col_input2:
+        audit_effectiveness_score_unsup = st.slider("Skor Efektivitas Audit (Audit_Effectiveness_Score)", min_value=0.0, max_value=10.0, value=st.session_state.get('unsup_score_val', 6.0), step=0.1, key="unsup_score_slider")
+
+
+    if st.button("🔍 Tentukan Cluster & Perbarui Plot", key="unsup_cluster_button"):
+        st.session_state.unsup_workload_val = employee_workload_unsup # Simpan nilai slider untuk persistensi
+        st.session_state.unsup_score_val = audit_effectiveness_score_unsup
+
+        current_user_input_coords = [float(employee_workload_unsup), audit_effectiveness_score_unsup]
+        st.session_state.user_point_coords_unsup = current_user_input_coords # Simpan koordinat untuk diplot ulang
+
+        input_data_kmeans_df = pd.DataFrame([current_user_input_coords], columns=features_kmeans)
         try:
             input_data_kmeans_scaled = kmeans_scaler.transform(input_data_kmeans_df)
             predicted_cluster = kmeans_model.predict(input_data_kmeans_scaled)[0]
+            st.session_state.user_point_cluster_unsup = predicted_cluster # Simpan cluster untuk diplot ulang
 
-            st.subheader("Hasil Segmentasi:")
-            st.success(f"Data input masuk ke **Cluster {predicted_cluster}**.")
+            # Simpan hasil teks ke session state untuk ditampilkan setelah rerun
+            st.session_state.predicted_cluster_text_unsup = f"Data input masuk ke **Cluster {predicted_cluster}**."
             if predicted_cluster in cluster_descriptions:
-                st.markdown(cluster_descriptions[predicted_cluster])
+                st.session_state.cluster_description_text_unsup = cluster_descriptions[predicted_cluster]
             else:
-                st.warning(f"Deskripsi untuk Cluster {predicted_cluster} belum tersedia.")
-
-            # --- Membuat Plot Visualisasi Cluster ---
-            st.subheader("Visualisasi Cluster:")
+                st.session_state.cluster_description_text_unsup = f"Deskripsi untuk Cluster {predicted_cluster} belum tersedia."
             
-            # Siapkan data asli untuk plot
-            X_plot_original = df_original_for_plot[features_kmeans].copy()
-            X_plot_scaled = kmeans_scaler.transform(X_plot_original) # Scale data asli untuk mendapatkan labelnya
-            all_cluster_labels = kmeans_model.predict(X_plot_scaled)
-
-            fig, ax = plt.subplots(figsize=(10, 7))
-            
-            # Scatter plot untuk semua data asli
-            sns.scatterplot(
-                x=X_plot_original.iloc[:, 0], 
-                y=X_plot_original.iloc[:, 1], 
-                hue=all_cluster_labels, 
-                palette='viridis', 
-                s=100, 
-                alpha=0.7, 
-                ax=ax,
-                legend='full' # Tampilkan legenda untuk cluster data asli
-            )
-            
-            # Plot centroids (inverse transform ke skala asli)
-            centroids = kmeans_scaler.inverse_transform(kmeans_model.cluster_centers_)
-            ax.scatter(
-                centroids[:, 0], 
-                centroids[:, 1], 
-                marker='X', 
-                s=250, # Ukuran lebih besar
-                color='red', 
-                label='Centroids',
-                edgecolor='black' # Tambahkan outline
-            )
-            
-            # Plot titik input pengguna (skala asli)
-            ax.scatter(
-                employee_workload_unsup, 
-                audit_effectiveness_score_unsup, 
-                marker='P', # Menggunakan marker 'P' (plus (filled))
-                s=300, # Ukuran lebih besar
-                color='lime', # Warna cerah
-                label=f'Input Anda (Cluster {predicted_cluster})',
-                edgecolor='black', # Tambahkan outline
-                zorder=5 # Pastikan di atas titik lain
-            )
-            
-            ax.set_title(f'K-Means Clustering (k={kmeans_model.n_clusters})')
-            ax.set_xlabel(features_kmeans[0])
-            ax.set_ylabel(features_kmeans[1])
-            ax.legend()
-            ax.grid(True)
-            
-            st.pyplot(fig)
+            # Tidak perlu panggil display_kmeans_plot lagi di sini, karena Streamlit akan rerun dan plot di atas akan update
+            # Cukup trigger rerun jika belum otomatis (biasanya st.button sudah trigger rerun)
+            # st.experimental_rerun() # Biasanya tidak perlu jika button ditekan
 
         except Exception as e:
-            st.error(f"Terjadi kesalahan saat menentukan cluster atau membuat plot: {e}")
+            st.error(f"Terjadi kesalahan saat menentukan cluster: {e}")
+            st.session_state.predicted_cluster_text_unsup = "" # Reset jika error
+            st.session_state.cluster_description_text_unsup = ""
+
+
+    # Tampilkan hasil teks dari session state (akan muncul setelah button ditekan dan script rerun)
+    if st.session_state.predicted_cluster_text_unsup:
+        st.subheader("Hasil Segmentasi:")
+        st.success(st.session_state.predicted_cluster_text_unsup)
+        st.markdown(st.session_state.cluster_description_text_unsup)
 
 
 # --- Kontrol Utama Aplikasi Berdasarkan Pilihan Pengguna ---
 if analysis_type == 'Prediksi Penggunaan AI (Regresi Logistik)':
+    # Reset state unsupervised jika beralih mode agar plot kembali ke default
+    if 'user_point_coords_unsup' in st.session_state: st.session_state.user_point_coords_unsup = None
+    if 'user_point_cluster_unsup' in st.session_state: st.session_state.user_point_cluster_unsup = None
+    if 'predicted_cluster_text_unsup' in st.session_state: st.session_state.predicted_cluster_text_unsup = ""
+    if 'cluster_description_text_unsup' in st.session_state: st.session_state.cluster_description_text_unsup = ""
     supervised_analysis()
 elif analysis_type == 'Segmentasi Profil Audit (K-Means)':
     unsupervised_analysis()
