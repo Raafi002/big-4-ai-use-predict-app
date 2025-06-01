@@ -1,4 +1,3 @@
-# app_combined.py
 import streamlit as st
 import pandas as pd
 import joblib
@@ -90,12 +89,12 @@ def supervised_analysis():
 
     with col2:
         st.subheader("Input Data Perusahaan & Industri:")
-        firm_name_options_sup = ["Pilih Firma"] + unique_firms
-        firm_name_default_index_sup = 0
+        firm_name_options_sup = ["Pilih Firma"] + unique_firms if unique_firms else ["Tidak Ada Data Firma"] # Penanganan jika unique_firms kosong
+        firm_name_default_index_sup = 0 # Selalu default ke "Pilih Firma" atau item pertama jika placeholder tidak ada
         firm_name_sup = st.selectbox("Nama Firma Audit (Firm_Name)", options=firm_name_options_sup, index=firm_name_default_index_sup, key="sup_firm")
 
-        industry_affected_options_sup = ["Pilih Industri"] + unique_industries
-        industry_affected_default_index_sup = 0
+        industry_affected_options_sup = ["Pilih Industri"] + unique_industries if unique_industries else ["Tidak Ada Data Industri"] # Penanganan jika unique_industries kosong
+        industry_affected_default_index_sup = 0 # Selalu default ke "Pilih Industri" atau item pertama
         industry_affected_sup = st.selectbox("Industri yang Terdampak (Industry_Affected)", options=industry_affected_options_sup, index=industry_affected_default_index_sup, key="sup_industry")
 
     if st.button("🔮 Prediksi Penggunaan AI", key="sup_predict_button"):
@@ -122,36 +121,24 @@ def supervised_analysis():
             input_df_sup = pd.DataFrame(input_data_sup)[feature_names_ordered_sup]
 
             try:
-                prediction_sup = logreg_pipeline.predict(input_df_sup)[0] # Hasil prediksi kelas (0 atau 1)
-                prediction_proba_sup = logreg_pipeline.predict_proba(input_df_sup)[0] # Hasil probabilitas [P(kelas 0), P(kelas 1)]
+                prediction_sup = logreg_pipeline.predict(input_df_sup)[0] 
+                prediction_proba_sup = logreg_pipeline.predict_proba(input_df_sup)[0] 
 
                 st.subheader("Hasil Prediksi:")
-                
-                # --- MODIFIKASI OUTPUT SESUAI SCREENSHOT ---
                 col_metric1, col_metric2 = st.columns(2)
 
                 with col_metric1:
-                    if prediction_sup == 1: # AI Digunakan
-                        # Sesuai screenshot, ikon bisa jadi bagian dari string atau styling terpisah
-                        # Untuk kemudahan, kita gunakan string dengan emoji
-                        pred_text_display_metric = "AI KEMUNGKINAN DIGUNAKAN ✅"
-                        # Untuk styling warna hijau, bisa menggunakan markdown dengan HTML atau menunggu fitur styling st.metric
-                        # st.markdown(f"<p style='color:green; font-size:20px; text-align:center;'>{pred_text_display_metric}</p>", unsafe_allow_html=True)
-                        # Atau biarkan st.metric menangani tampilan default:
+                    if prediction_sup == 1: 
                         st.metric(label="PREDIKSI MODEL", value="AI KEMUNGKINAN DIGUNAKAN")
-                    else: # AI Tidak Digunakan
-                        pred_text_display_metric = "AI KEMUNGKINAN TIDAK DIGUNAKAN ⚠️"
-                        # st.markdown(f"<p style='color:red; font-size:20px; text-align:center;'>{pred_text_display_metric}</p>", unsafe_allow_html=True)
+                    else: 
                         st.metric(label="PREDIKSI MODEL", value="AI KEMUNGKINAN TIDAK DIGUNAKAN")
                 
                 with col_metric2:
-                    # Tingkat keyakinan adalah probabilitas dari kelas yang diprediksi
-                    if prediction_sup == 1: # Jika prediksi AI Digunakan
+                    if prediction_sup == 1: 
                         confidence_percentage = prediction_proba_sup[1] * 100
-                    else: # Jika prediksi AI Tidak Digunakan
+                    else: 
                         confidence_percentage = prediction_proba_sup[0] * 100
                     st.metric(label="TINGKAT KEYAKINAN", value=f"{confidence_percentage:.2f}%")
-                # --- AKHIR MODIFIKASI OUTPUT ---
 
             except Exception as e:
                 st.error(f"Terjadi kesalahan saat melakukan prediksi: {e}")
@@ -246,7 +233,11 @@ def unsupervised_analysis():
             input_data_kmeans_scaled = kmeans_scaler.transform(input_data_kmeans_df)
             predicted_cluster = kmeans_model.predict(input_data_kmeans_scaled)[0]
             st.session_state.user_point_cluster_unsup = predicted_cluster 
-            st.session_state.predicted_cluster_text_unsup = f"Data input (Beban Kerja: {employee_workload_unsup}, Skor Efektivitas: {audit_effectiveness_score_unsup}) masuk ke **Cluster {predicted_cluster}**."
+            
+            # --- MODIFIKASI OUTPUT TEKS K-MEANS ---
+            st.session_state.predicted_cluster_text_unsup = f"Data input masuk ke **Cluster {predicted_cluster}**."
+            # --- AKHIR MODIFIKASI ---
+            
             if predicted_cluster in cluster_descriptions:
                 st.session_state.cluster_description_text_unsup = cluster_descriptions[predicted_cluster]
             else:
