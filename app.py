@@ -257,7 +257,6 @@ def unsupervised_analysis():
     # Tampilkan hasil teks dari session state (akan muncul setelah button ditekan dan script rerun)
     if st.session_state.predicted_cluster_text_unsup:
         st.subheader("Hasil Segmentasi untuk Input Anda:")
-        st.success(st.session_state.predicted_cluster_text_unsup) # Menampilkan input juga
         st.markdown(st.session_state.cluster_description_text_unsup)
 
 
