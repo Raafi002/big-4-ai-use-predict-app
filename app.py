@@ -3,7 +3,7 @@ import streamlit as st
 import pandas as pd
 import joblib
 import numpy as np
-import sklearn 
+import sklearn # Untuk mengecek versi
 import os
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -122,16 +122,37 @@ def supervised_analysis():
             input_df_sup = pd.DataFrame(input_data_sup)[feature_names_ordered_sup]
 
             try:
-                prediction_sup = logreg_pipeline.predict(input_df_sup)[0]
-                prediction_proba_sup = logreg_pipeline.predict_proba(input_df_sup)[0]
+                prediction_sup = logreg_pipeline.predict(input_df_sup)[0] # Hasil prediksi kelas (0 atau 1)
+                prediction_proba_sup = logreg_pipeline.predict_proba(input_df_sup)[0] # Hasil probabilitas [P(kelas 0), P(kelas 1)]
 
                 st.subheader("Hasil Prediksi:")
-                if prediction_sup == 1:
-                    st.success(f"✅ **AI kemungkinan DIGUNAKAN** dalam proses audit ini.")
-                    st.write(f"   Probabilitas AI Digunakan (Yes): {prediction_proba_sup[1]*100:.2f}%")
-                else:
-                    st.error(f"⚠️ **AI kemungkinan TIDAK DIGUNAKAN** dalam proses audit ini.")
-                    st.write(f"   Probabilitas AI Tidak Digunakan (No): {prediction_proba_sup[0]*100:.2f}%")
+                
+                # --- MODIFIKASI OUTPUT SESUAI SCREENSHOT ---
+                col_metric1, col_metric2 = st.columns(2)
+
+                with col_metric1:
+                    if prediction_sup == 1: # AI Digunakan
+                        # Sesuai screenshot, ikon bisa jadi bagian dari string atau styling terpisah
+                        # Untuk kemudahan, kita gunakan string dengan emoji
+                        pred_text_display_metric = "AI KEMUNGKINAN DIGUNAKAN ✅"
+                        # Untuk styling warna hijau, bisa menggunakan markdown dengan HTML atau menunggu fitur styling st.metric
+                        # st.markdown(f"<p style='color:green; font-size:20px; text-align:center;'>{pred_text_display_metric}</p>", unsafe_allow_html=True)
+                        # Atau biarkan st.metric menangani tampilan default:
+                        st.metric(label="PREDIKSI MODEL", value="AI KEMUNGKINAN DIGUNAKAN")
+                    else: # AI Tidak Digunakan
+                        pred_text_display_metric = "AI KEMUNGKINAN TIDAK DIGUNAKAN ⚠️"
+                        # st.markdown(f"<p style='color:red; font-size:20px; text-align:center;'>{pred_text_display_metric}</p>", unsafe_allow_html=True)
+                        st.metric(label="PREDIKSI MODEL", value="AI KEMUNGKINAN TIDAK DIGUNAKAN")
+                
+                with col_metric2:
+                    # Tingkat keyakinan adalah probabilitas dari kelas yang diprediksi
+                    if prediction_sup == 1: # Jika prediksi AI Digunakan
+                        confidence_percentage = prediction_proba_sup[1] * 100
+                    else: # Jika prediksi AI Tidak Digunakan
+                        confidence_percentage = prediction_proba_sup[0] * 100
+                    st.metric(label="TINGKAT KEYAKINAN", value=f"{confidence_percentage:.2f}%")
+                # --- AKHIR MODIFIKASI OUTPUT ---
+
             except Exception as e:
                 st.error(f"Terjadi kesalahan saat melakukan prediksi: {e}")
 
@@ -145,11 +166,10 @@ def unsupervised_analysis():
 
     st.title("📊 Segmentasi Profil Audit (K-Means Clustering)")
     
-    # Teks keterangan dipindahkan ke sini, sebelum plot
     st.markdown("""
     Aplikasi ini membantu Anda mengidentifikasi segmen atau cluster dari suatu kasus audit (atau profil auditor) berdasarkan **Beban Kerja Karyawan** dan **Skor Efektivitas Audit**.
     Visualisasi di bawah ini menunjukkan sebaran data asli dan posisi centroid cluster. Masukkan nilai pada slider untuk melihat ke cluster mana input Anda diklasifikasikan dan bagaimana posisinya di plot.
-    """) # Penyesuaian teks keterangan
+    """) 
 
     features_kmeans = ['Employee_Workload', 'Audit_Effectiveness_Score']
     cluster_descriptions = {
@@ -158,7 +178,6 @@ def unsupervised_analysis():
         2: "**Profil Cluster 2:** Cenderung memiliki Beban Kerja Karyawan yang tinggi namun dengan Skor Efektivitas Audit yang paling rendah. Kelompok ini mungkin memerlukan perhatian lebih, potensi adanya inefisiensi, atau area dengan tantangan khusus yang mempengaruhi efektivitas."
     }
 
-    # Inisialisasi session state jika belum ada
     if 'user_point_coords_unsup' not in st.session_state:
         st.session_state.user_point_coords_unsup = None
     if 'user_point_cluster_unsup' not in st.session_state:
@@ -167,32 +186,29 @@ def unsupervised_analysis():
         st.session_state.predicted_cluster_text_unsup = ""
     if 'cluster_description_text_unsup' not in st.session_state:
         st.session_state.cluster_description_text_unsup = ""
-    if 'unsup_workload_val' not in st.session_state: # Untuk persistensi nilai slider
+    if 'unsup_workload_val' not in st.session_state: 
         st.session_state.unsup_workload_val = 50
-    if 'unsup_score_val' not in st.session_state: # Untuk persistensi nilai slider
+    if 'unsup_score_val' not in st.session_state: 
         st.session_state.unsup_score_val = 6.0
 
-
-    # --- Fungsi untuk membuat dan menampilkan plot ---
     def display_kmeans_plot(user_coords=None, user_cluster_label=None):
-        # st.subheader("Visualisasi Cluster:") # Dihapus karena plot langsung di bawah markdown
         X_plot_original = df_original_for_plot[features_kmeans].copy()
         X_plot_scaled = kmeans_scaler.transform(X_plot_original)
         all_cluster_labels = kmeans_model.predict(X_plot_scaled)
         centroids = kmeans_scaler.inverse_transform(kmeans_model.cluster_centers_)
 
-        fig, ax = plt.subplots(figsize=(8, 5)) # Ukuran grafik diperkecil
+        fig, ax = plt.subplots(figsize=(8, 5)) 
         sns.scatterplot(
             x=X_plot_original.iloc[:, 0], y=X_plot_original.iloc[:, 1],
-            hue=all_cluster_labels, palette='viridis', s=80, alpha=0.7, ax=ax, legend='full' # s diperkecil
+            hue=all_cluster_labels, palette='viridis', s=80, alpha=0.7, ax=ax, legend='full'
         )
         ax.scatter(
-            centroids[:, 0], centroids[:, 1], marker='X', s=200, color='red', # s diperkecil
+            centroids[:, 0], centroids[:, 1], marker='X', s=200, color='red', 
             label='Centroids', edgecolor='black'
         )
         if user_coords and user_cluster_label is not None:
             ax.scatter(
-                user_coords[0], user_coords[1], marker='P', s=250, color='lime', # s diperkecil
+                user_coords[0], user_coords[1], marker='P', s=250, color='lime', 
                 label=f'Input Anda (Cluster {user_cluster_label})', edgecolor='black', zorder=5
             )
         ax.set_title(f'K-Means Clustering (k={kmeans_model.n_clusters})')
@@ -202,63 +218,49 @@ def unsupervised_analysis():
         ax.grid(True)
         st.pyplot(fig)
 
-    # --- Tampilkan plot di posisi baru (setelah markdown, sebelum slider) ---
     display_kmeans_plot(st.session_state.user_point_coords_unsup, st.session_state.user_point_cluster_unsup)
+    st.markdown("---") 
 
-    st.markdown("---") # Pemisah sebelum input slider
-
-    # Slider sekarang diposisikan atas-bawah (tidak dalam kolom)
     employee_workload_unsup = st.slider(
         "Beban Kerja Karyawan (Employee_Workload)", 
         min_value=0, max_value=100, 
-        value=st.session_state.unsup_workload_val, # Mengambil nilai dari session state
+        value=st.session_state.unsup_workload_val, 
         step=1, 
         key="unsup_workload_slider"
     )
     audit_effectiveness_score_unsup = st.slider(
         "Skor Efektivitas Audit (Audit_Effectiveness_Score)", 
         min_value=0.0, max_value=10.0, 
-        value=st.session_state.unsup_score_val, # Mengambil nilai dari session state
+        value=st.session_state.unsup_score_val, 
         step=0.1, 
         key="unsup_score_slider"
     )
 
-
     if st.button("🔍 Tentukan Cluster & Perbarui Plot", key="unsup_cluster_button"):
-        # Simpan nilai slider saat ini ke session state untuk persistensi UI
         st.session_state.unsup_workload_val = employee_workload_unsup
         st.session_state.unsup_score_val = audit_effectiveness_score_unsup
-
         current_user_input_coords = [float(employee_workload_unsup), audit_effectiveness_score_unsup]
         st.session_state.user_point_coords_unsup = current_user_input_coords 
-
         input_data_kmeans_df = pd.DataFrame([current_user_input_coords], columns=features_kmeans)
         try:
             input_data_kmeans_scaled = kmeans_scaler.transform(input_data_kmeans_df)
             predicted_cluster = kmeans_model.predict(input_data_kmeans_scaled)[0]
             st.session_state.user_point_cluster_unsup = predicted_cluster 
-
             st.session_state.predicted_cluster_text_unsup = f"Data input (Beban Kerja: {employee_workload_unsup}, Skor Efektivitas: {audit_effectiveness_score_unsup}) masuk ke **Cluster {predicted_cluster}**."
             if predicted_cluster in cluster_descriptions:
                 st.session_state.cluster_description_text_unsup = cluster_descriptions[predicted_cluster]
             else:
                 st.session_state.cluster_description_text_unsup = f"Deskripsi untuk Cluster {predicted_cluster} belum tersedia."
-            
-            # Memicu rerun secara eksplisit agar plot di atas langsung update dengan state baru
-            # dan teks hasil muncul di bawah.
             st.rerun() 
-
         except Exception as e:
             st.error(f"Terjadi kesalahan saat menentukan cluster: {e}")
             st.session_state.predicted_cluster_text_unsup = "" 
             st.session_state.cluster_description_text_unsup = ""
 
-
-    # Tampilkan hasil teks dari session state (akan muncul setelah button ditekan dan script rerun)
     if st.session_state.predicted_cluster_text_unsup:
         st.subheader("Hasil Segmentasi untuk Input Anda:")
+        st.success(st.session_state.predicted_cluster_text_unsup) 
         st.markdown(st.session_state.cluster_description_text_unsup)
-
 
 # --- Kontrol Utama Aplikasi Berdasarkan Pilihan Pengguna ---
 if analysis_type == 'Prediksi Penggunaan AI (Regresi Logistik)':
@@ -266,8 +268,8 @@ if analysis_type == 'Prediksi Penggunaan AI (Regresi Logistik)':
     if 'user_point_cluster_unsup' in st.session_state: st.session_state.user_point_cluster_unsup = None
     if 'predicted_cluster_text_unsup' in st.session_state: st.session_state.predicted_cluster_text_unsup = ""
     if 'cluster_description_text_unsup' in st.session_state: st.session_state.cluster_description_text_unsup = ""
-    if 'unsup_workload_val' in st.session_state: st.session_state.unsup_workload_val = 50 # Reset nilai slider
-    if 'unsup_score_val' in st.session_state: st.session_state.unsup_score_val = 6.0 # Reset nilai slider
+    if 'unsup_workload_val' in st.session_state: st.session_state.unsup_workload_val = 50 
+    if 'unsup_score_val' in st.session_state: st.session_state.unsup_score_val = 6.0 
     supervised_analysis()
 elif analysis_type == 'Segmentasi Profil Audit (K-Means)':
     unsupervised_analysis()
