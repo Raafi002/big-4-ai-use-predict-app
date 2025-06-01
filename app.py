@@ -5,6 +5,8 @@ import joblib
 import numpy as np
 import sklearn # Untuk mengecek versi
 import os
+import matplotlib.pyplot as plt 
+import seaborn as sns           
 
 # --- Konfigurasi Halaman dan Sidebar Umum ---
 st.set_page_config(page_title="Analisis Audit & AI", layout="wide")
@@ -47,17 +49,19 @@ def load_logistic_regression_model():
         return None, None, None
 
 @st.cache_resource
-def load_kmeans_model():
+def load_kmeans_model_and_data(): # Modifikasi untuk memuat data asli juga
     try:
         model = joblib.load("kmeans_model.joblib")
         scaler = joblib.load("kmeans_scaler.joblib")
-        return model, scaler
+        # Muat data asli untuk plotting
+        df_original_for_plot = pd.read_csv('big4_financial_risk_compliance.csv')
+        return model, scaler, df_original_for_plot
     except FileNotFoundError:
-        st.error("File model K-Means atau scaler tidak ditemukan. Jalankan 'Main.ipynb'.")
-        return None, None
+        st.error("File model K-Means, scaler, atau dataset asli tidak ditemukan. Pastikan semua file ada dan 'Main.ipynb' sudah dijalankan.")
+        return None, None, None
     except Exception as e:
-        st.error(f"Error memuat model K-Means: {e}. Pastikan versi scikit-learn sesuai.")
-        return None, None
+        st.error(f"Error memuat model K-Means/Scaler/Data: {e}. Pastikan versi scikit-learn sesuai.")
+        return None, None, None
 
 # --- Logika untuk Analisis Regresi Logistik (Supervised) ---
 def supervised_analysis():
@@ -134,10 +138,10 @@ def supervised_analysis():
 
 # --- Logika untuk Analisis K-Means Clustering (Unsupervised) ---
 def unsupervised_analysis():
-    kmeans_model, kmeans_scaler = load_kmeans_model()
+    kmeans_model, kmeans_scaler, df_original_for_plot = load_kmeans_model_and_data()
 
-    if not kmeans_model or not kmeans_scaler:
-        st.warning("Model K-Means tidak dapat dimuat. Fungsi segmentasi tidak tersedia.")
+    if not kmeans_model or not kmeans_scaler or df_original_for_plot is None:
+        st.warning("Model K-Means, scaler, atau data asli tidak dapat dimuat. Fungsi segmentasi tidak tersedia.")
         return
 
     st.title("📊 Segmentasi Profil Audit (K-Means Clustering)")
@@ -156,10 +160,10 @@ def unsupervised_analysis():
     employee_workload_unsup = st.slider("Beban Kerja Karyawan (Employee_Workload)", min_value=0, max_value=100, value=50, step=1, key="unsup_workload")
     audit_effectiveness_score_unsup = st.slider("Skor Efektivitas Audit (Audit_Effectiveness_Score)", min_value=0.0, max_value=10.0, value=6.0, step=0.1, key="unsup_score")
 
-    if st.button("🔍 Tentukan Cluster", key="unsup_cluster_button"):
-        input_data_kmeans = pd.DataFrame([[float(employee_workload_unsup), audit_effectiveness_score_unsup]], columns=features_kmeans)
+    if st.button("🔍 Tentukan Cluster & Tampilkan Plot", key="unsup_cluster_button"): # Ubah teks tombol
+        input_data_kmeans_df = pd.DataFrame([[float(employee_workload_unsup), audit_effectiveness_score_unsup]], columns=features_kmeans)
         try:
-            input_data_kmeans_scaled = kmeans_scaler.transform(input_data_kmeans)
+            input_data_kmeans_scaled = kmeans_scaler.transform(input_data_kmeans_df)
             predicted_cluster = kmeans_model.predict(input_data_kmeans_scaled)[0]
 
             st.subheader("Hasil Segmentasi:")
@@ -168,8 +172,63 @@ def unsupervised_analysis():
                 st.markdown(cluster_descriptions[predicted_cluster])
             else:
                 st.warning(f"Deskripsi untuk Cluster {predicted_cluster} belum tersedia.")
+
+            # --- Membuat Plot Visualisasi Cluster ---
+            st.subheader("Visualisasi Cluster:")
+            
+            # Siapkan data asli untuk plot
+            X_plot_original = df_original_for_plot[features_kmeans].copy()
+            X_plot_scaled = kmeans_scaler.transform(X_plot_original) # Scale data asli untuk mendapatkan labelnya
+            all_cluster_labels = kmeans_model.predict(X_plot_scaled)
+
+            fig, ax = plt.subplots(figsize=(10, 7))
+            
+            # Scatter plot untuk semua data asli
+            sns.scatterplot(
+                x=X_plot_original.iloc[:, 0], 
+                y=X_plot_original.iloc[:, 1], 
+                hue=all_cluster_labels, 
+                palette='viridis', 
+                s=100, 
+                alpha=0.7, 
+                ax=ax,
+                legend='full' # Tampilkan legenda untuk cluster data asli
+            )
+            
+            # Plot centroids (inverse transform ke skala asli)
+            centroids = kmeans_scaler.inverse_transform(kmeans_model.cluster_centers_)
+            ax.scatter(
+                centroids[:, 0], 
+                centroids[:, 1], 
+                marker='X', 
+                s=250, # Ukuran lebih besar
+                color='red', 
+                label='Centroids',
+                edgecolor='black' # Tambahkan outline
+            )
+            
+            # Plot titik input pengguna (skala asli)
+            ax.scatter(
+                employee_workload_unsup, 
+                audit_effectiveness_score_unsup, 
+                marker='P', # Menggunakan marker 'P' (plus (filled))
+                s=300, # Ukuran lebih besar
+                color='lime', # Warna cerah
+                label=f'Input Anda (Cluster {predicted_cluster})',
+                edgecolor='black', # Tambahkan outline
+                zorder=5 # Pastikan di atas titik lain
+            )
+            
+            ax.set_title(f'K-Means Clustering (k={kmeans_model.n_clusters})')
+            ax.set_xlabel(features_kmeans[0])
+            ax.set_ylabel(features_kmeans[1])
+            ax.legend()
+            ax.grid(True)
+            
+            st.pyplot(fig)
+
         except Exception as e:
-            st.error(f"Terjadi kesalahan saat menentukan cluster: {e}")
+            st.error(f"Terjadi kesalahan saat menentukan cluster atau membuat plot: {e}")
 
 
 # --- Kontrol Utama Aplikasi Berdasarkan Pilihan Pengguna ---
